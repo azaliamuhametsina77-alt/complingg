@@ -1028,72 +1028,80 @@ section > h2.mw-type-heading + details.mw-country{
 </script>
 
 <script>
-/* Adaptive iframe height for Tilda/GitHub embed */
+/* Adaptive iframe height for Tilda/GitHub embed — supports shrinking after <details> close */
 (function () {
   var lastHeight = 0;
   var timer = null;
 
-  function getPageHeight() {
-    var body = document.body;
-    var html = document.documentElement;
-    return Math.ceil(Math.max(
-      body ? body.scrollHeight : 0,
-      body ? body.offsetHeight : 0,
-      html ? html.clientHeight : 0,
-      html ? html.scrollHeight : 0,
-      html ? html.offsetHeight : 0
-    ));
+  function getContentHeight() {
+    var candidates = [];
+    var main = document.querySelector('.media-words-page');
+    if (main) candidates.push(main);
+
+    Array.prototype.forEach.call(document.body ? document.body.children : [], function (el) {
+      var tag = (el.tagName || '').toLowerCase();
+      if (tag !== 'script' && tag !== 'style' && tag !== 'link') candidates.push(el);
+    });
+
+    var bottom = 0;
+    candidates.forEach(function (el) {
+      var rect = el.getBoundingClientRect();
+      if (rect && rect.height) {
+        bottom = Math.max(bottom, rect.bottom + window.scrollY);
+      }
+    });
+
+    return Math.ceil(bottom + 24);
   }
 
   function sendHeight() {
-    var height = getPageHeight();
-    if (!height || Math.abs(height - lastHeight) < 2) return;
+    var height = getContentHeight();
+    if (!height) return;
+
+    // Send both growth and shrinkage. Do not compare with iframe viewport height:
+    // viewport height may preserve the old expanded value after a <details> block closes.
+    if (Math.abs(height - lastHeight) < 2) return;
     lastHeight = height;
 
     window.parent.postMessage({
-      type: "mediaWordsHeight",
+      type: 'mediaWordsHeight',
       height: height
-    }, "*");
+    }, '*');
   }
 
   function scheduleSend(delay) {
     clearTimeout(timer);
-    timer = setTimeout(sendHeight, delay || 80);
+    timer = setTimeout(function () {
+      requestAnimationFrame(sendHeight);
+    }, delay || 0);
   }
 
-  window.addEventListener("load", function () {
+  function sendSeries() {
     scheduleSend(0);
-    scheduleSend(300);
-    scheduleSend(900);
-  });
-
-  window.addEventListener("resize", function () {
-    scheduleSend(120);
-  });
-
-  document.addEventListener("toggle", function () {
     scheduleSend(80);
-    scheduleSend(350);
-    scheduleSend(900);
-  }, true);
-
-  document.addEventListener("click", function () {
-    scheduleSend(120);
-    scheduleSend(500);
-  }, true);
-
-  if ("ResizeObserver" in window) {
-    var resizeObserver = new ResizeObserver(function () {
-      scheduleSend(80);
-    });
-    resizeObserver.observe(document.documentElement);
-    if (document.body) resizeObserver.observe(document.body);
+    scheduleSend(180);
+    scheduleSend(360);
+    scheduleSend(750);
+    scheduleSend(1200);
   }
 
-  if ("MutationObserver" in window && document.body) {
-    var mutationObserver = new MutationObserver(function () {
-      scheduleSend(120);
-    });
+  window.addEventListener('load', sendSeries);
+  window.addEventListener('resize', function () { scheduleSend(120); });
+
+  document.addEventListener('toggle', sendSeries, true);
+  document.addEventListener('click', function () {
+    scheduleSend(120);
+    scheduleSend(420);
+  }, true);
+
+  if ('ResizeObserver' in window) {
+    var target = document.querySelector('.media-words-page') || document.body || document.documentElement;
+    var resizeObserver = new ResizeObserver(function () { scheduleSend(80); });
+    resizeObserver.observe(target);
+  }
+
+  if ('MutationObserver' in window && document.body) {
+    var mutationObserver = new MutationObserver(function () { scheduleSend(140); });
     mutationObserver.observe(document.body, {
       childList: true,
       subtree: true,
@@ -1102,7 +1110,7 @@ section > h2.mw-type-heading + details.mw-country{
     });
   }
 
-  setInterval(sendHeight, 1200);
+  setInterval(sendHeight, 1500);
 })();
 </script>
 
